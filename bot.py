@@ -2,6 +2,7 @@ import os
 import math
 import sqlite3
 from dotenv import load_dotenv
+from db.schema import create_tables
 
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -20,6 +21,8 @@ TOKEN = os.getenv("BOT_TOKEN")
 conn = sqlite3.connect("attendance.db", check_same_thread=False)
 conn.row_factory = sqlite3.Row
 cursor = conn.cursor()
+
+create_tables()
 
 # ================= START =================
 
