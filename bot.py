@@ -54,9 +54,11 @@ async def addsubject(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def addsubject_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     step = context.user_data.get("step")
 
+    # 1️⃣ Subject name
     if step == "name":
-        context.user_data["subject"] = update.message.text
+        context.user_data["base_name"] = update.message.text.strip()
         context.user_data["step"] = "type"
+
         await update.message.reply_text(
             "Select class type:",
             reply_markup=ReplyKeyboardMarkup(
@@ -65,22 +67,56 @@ async def addsubject_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         )
 
+    # 2️⃣ Class type
     elif step == "type":
         context.user_data["class_type"] = update.message.text.lower()
         context.user_data["step"] = "cpw"
+
         await update.message.reply_text("Classes per week?")
 
+    # 3️⃣ Classes per week
     elif step == "cpw":
-        context.user_data["cpw"] = int(update.message.text)
+        try:
+            cpw = int(update.message.text)
+            if cpw <= 0:
+                raise ValueError
+        except ValueError:
+            await update.message.reply_text("❌ Enter a valid positive number.")
+            return
+
+        context.user_data["cpw"] = cpw
         context.user_data["step"] = "weeks"
+
         await update.message.reply_text("Total weeks? (usually 15)")
 
+    # 4️⃣ Total weeks → SAVE
     elif step == "weeks":
-        weeks = int(update.message.text)
+        try:
+            weeks = int(update.message.text)
+            if weeks <= 0:
+                raise ValueError
+        except ValueError:
+            await update.message.reply_text("❌ Enter a valid positive number.")
+            return
+
+        uid = update.effective_user.id
+        base = context.user_data["base_name"]
+        class_type = context.user_data["class_type"]
         cpw = context.user_data["cpw"]
+
+        # 🔑 UNIQUE SUBJECT NAME PER TYPE
+        if class_type == "lab":
+            subject_name = f"{base} Lab"
+            lab_hours = 2
+        elif class_type == "tutorial":
+            subject_name = f"{base} Tutorial"
+            lab_hours = 0
+        else:
+            subject_name = base
+            lab_hours = 0
+
         total = cpw * weeks
         required = math.ceil(0.8 * total)
-        lab_hours = 2 if context.user_data["class_type"] == "lab" else 0
 
         cursor.execute("""
         INSERT INTO user_subjects
@@ -89,16 +125,22 @@ async def addsubject_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
          total_classes, required_classes, lab_hours)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            update.effective_user.id,
-            context.user_data["subject"],
-            context.user_data["class_type"],
-            cpw, weeks, total, required, lab_hours
+            uid,
+            subject_name,
+            class_type,
+            cpw,
+            weeks,
+            total,
+            required,
+            lab_hours
         ))
 
         conn.commit()
         context.user_data.clear()
-        await update.message.reply_text("✅ Subject added.")
 
+        await update.message.reply_text(
+            f"✅ {subject_name} added successfully."
+        )
 # ================= PRESET CYBER =================
 
 async def preset_cyber(update: Update, context: ContextTypes.DEFAULT_TYPE):
